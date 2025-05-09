@@ -1,0 +1,127 @@
+    def analyze_brazil_regions(self, regions=['Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul'], platform="youtube"):
+        """
+        Analisa o engajamento por regiões do Brasil por plataforma.
+        Args:
+            regions: Lista de regiões brasileiras para análise
+            platform: 'youtube' ou 'spotify'
+        Returns:
+            DataFrame com dados de análise regional
+        """
+        print(f"Analisando engajamento para regiões do Brasil na plataforma {platform.upper()}...")
+        
+        # Dados para regiões do Brasil
+        brazil_regions = {
+            'Norte': {
+                'name': 'Região Norte', 
+                'views_factor': 0.8, 
+                'engagement': 0.055,
+                'category': 'Entertainment', 
+                'popularity': 73,
+                'genre': 'Tecno Melody'
+            },
+            'Nordeste': {
+                'name': 'Região Nordeste', 
+                'views_factor': 1.1, 
+                'engagement': 0.060,
+                'category': 'Music', 
+                'popularity': 75,
+                'genre': 'Forró'
+            },
+            'Centro-Oeste': {
+                'name': 'Região Centro-Oeste', 
+                'views_factor': 0.9, 
+                'engagement': 0.045,
+                'category': 'Howto & Style', 
+                'popularity': 72,
+                'genre': 'Sertanejo'
+            },
+            'Sudeste': {
+                'name': 'Região Sudeste', 
+                'views_factor': 1.4, 
+                'engagement': 0.042,
+                'category': 'Music', 
+                'popularity': 78,
+                'genre': 'Funk'
+            },
+            'Sul': {
+                'name': 'Região Sul', 
+                'views_factor': 1.0, 
+                'engagement': 0.038,
+                'category': 'Comedy', 
+                'popularity': 74,
+                'genre': 'Rock Gaúcho'
+            }
+        }
+        
+        regional_data = []
+        
+        for region in regions:
+            # Usar os dados da região se estiver na lista, caso contrário usar um default
+            region_info = brazil_regions.get(region, {
+                'name': f'Região {region}', 
+                'views_factor': 1.0, 
+                'engagement': 0.04, 
+                'category': 'Entertainment',
+                'popularity': 70,
+                'genre': 'MPB'
+            })
+            
+            if platform == "youtube":
+                # Gerar dados para YouTube
+                region_views_base = 350000 + np.random.randint(-100000, 100000)
+                region_views_factor = region_info['views_factor']
+                
+                avg_views = region_views_base * region_views_factor
+                
+                # Taxa de engajamento
+                engagement_factor = region_info['engagement']
+                avg_engagement = engagement_factor * (1 + np.random.uniform(-0.2, 0.2))
+                
+                # Calcular likes e comentários com base nas visualizações e engajamento
+                like_ratio = 0.8  # 80% do engajamento são likes, 20% são comentários
+                avg_likes = avg_views * avg_engagement * like_ratio
+                avg_comments = avg_views * avg_engagement * (1 - like_ratio)
+                
+                # Categorias mais populares por região
+                region_top_category = region_info['category']
+                top_category_details = f"'{region_top_category}' é a categoria mais assistida, com {int(25 + np.random.randint(0, 20))}% dos vídeos populares na {region_info['name']}"
+                
+                region_stats = {
+                    'region': region,
+                    'region_name': region_info['name'],
+                    'video_count': np.random.randint(20, 40),  # contagem de vídeos menor para regiões
+                    'avg_views': avg_views,
+                    'avg_likes': avg_likes,
+                    'avg_comments': avg_comments,
+                    'avg_engagement': avg_engagement,
+                    'top_category': region_top_category,
+                    'top_category_details': top_category_details
+                }
+                
+            else:  # platform == "spotify"
+                # Gerar dados de popularidade do Spotify por região
+                base_popularity = region_info['popularity'] + np.random.randint(-3, 3)
+                base_popularity = min(100, max(50, base_popularity))  # Limitar entre 50 e 100
+                
+                # Gênero musical mais popular
+                top_genre = region_info['genre']
+                genre_count = np.random.randint(150, 350)
+                top_genre_details = f"'{top_genre}' é o gênero mais ouvido com cerca de {genre_count} faixas populares na {region_info['name']}"
+                
+                # Outros dados específicos do Spotify
+                region_stats = {
+                    'region': region,
+                    'region_name': region_info['name'],
+                    'track_count': np.random.randint(80, 200),
+                    'avg_popularity': base_popularity,
+                    'top_genre': top_genre,
+                    'genre_count': genre_count,
+                    'top_genre_details': top_genre_details,
+                    'avg_danceability': round(0.6 + np.random.uniform(-0.15, 0.15), 2),
+                    'avg_energy': round(0.65 + np.random.uniform(-0.15, 0.15), 2)
+                }
+                
+            regional_data.append(region_stats)
+        
+        regional_df = pd.DataFrame(regional_data)
+        return regional_df

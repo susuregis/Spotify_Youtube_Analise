@@ -1,0 +1,831 @@
+"""
+Spotify & YouTube Data Analysis and Correlation Tool
+Este script extrai dados das APIs do Spotify e YouTube, realiza análises de tendências de músicas e vídeos,
+identifica correlações, analisa o engajamento regional e cria visualizações interativas.
+"""
+
+import os
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
+try:
+    from googleapiclient.discovery import build
+except ImportError:
+    print("Google API Client não encontrado. As chamadas à API do YouTube serão simuladas.")
+
+try:
+    import spotipy
+    from spotipy.oauth2 import SpotifyOAuth
+except ImportError:
+    print("Spotipy não encontrado. As chamadas à API do Spotify serão simuladas.")
+
+# Configuração (substitua pelas suas credenciais reais quando for usar em produção)
+SPOTIFY_CLIENT_ID = "seu_client_id_spotify"
+SPOTIFY_CLIENT_SECRET = "seu_client_secret_spotify"
+SPOTIFY_REDIRECT_URI = "http://localhost:8888/callback"
+YOUTUBE_API_KEY = "sua_api_key_youtube"
+
+# Inicializar clientes API (comentado para evitar erros sem credenciais válidas)
+# youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+# sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
+#    client_id=SPOTIFY_CLIENT_ID,
+#    client_secret=SPOTIFY_CLIENT_SECRET,
+#    redirect_uri=SPOTIFY_REDIRECT_URI,
+#    scope="user-library-read user-top-read playlist-read-private user-read-recently-played"
+# ))
+
+class SpotifyYouTubeAnalyzer:
+    def __init__(self):
+        """Inicializa o analisador de dados do Spotify e YouTube."""
+        self.spotify_tracks_df = None
+        self.spotify_playlists_df = None
+        self.spotify_artists_df = None
+        self.youtube_videos_df = None
+        self.youtube_categories_df = None
+        self.correlation_df = None
+        
+    def generate_sample_spotify_data(self):
+        """Gera dados de amostra do Spotify quando o acesso à API falha."""
+        print("Gerando dados de amostra do Spotify (modo offline)...")
+        
+        # Dados de sample para tracks
+        sample_tracks = [
+            {
+                'id': f'track_id_{i}',
+                'name': f'Música Popular {i}',
+                'artist': f'Artista {i % 10}',
+                'artist_id': f'artist_id_{i % 10}',
+                'album': f'Album {i % 5}',
+                'popularity': np.random.randint(50, 100),
+                'duration_ms': np.random.randint(180000, 300000),
+                'explicit': bool(np.random.randint(0, 2)),
+                'added_at': (datetime.now() - timedelta(days=np.random.randint(1, 365))).isoformat(),
+                'danceability': np.random.random(),
+                'energy': np.random.random(),
+                'key': np.random.randint(0, 12),
+                'loudness': np.random.uniform(-15, -5),
+                'mode': np.random.randint(0, 2),
+                'speechiness': np.random.random() * 0.3,
+                'acousticness': np.random.random(),
+                'instrumentalness': np.random.random() * 0.2,
+                'liveness': np.random.random() * 0.3,
+                'valence': np.random.random(),
+                'tempo': np.random.randint(70, 180),
+            } for i in range(100)
+        ]
+        
+        # Sample playlists
+        sample_playlists = [
+            {
+                'id': f'playlist_id_{i}',
+                'name': f'Playlist Popular {i}',
+                'description': f'Uma playlist com músicas populares {i}',
+                'owner': 'Spotify',
+                'tracks_total': np.random.randint(20, 100),
+                'followers': np.random.randint(1000, 100000),
+                'image_url': 'https://example.com/image.jpg'
+            } for i in range(10)
+        ]
+        
+        # Sample artists
+        sample_artists = [
+            {
+                'id': f'artist_id_{i}',
+                'name': f'Artista {i}',
+                'followers': np.random.randint(10000, 10000000),
+                'popularity': np.random.randint(50, 100),
+                'genres': ', '.join(np.random.choice(['pop', 'rock', 'hip hop', 'eletrônica', 'jazz', 'MPB', 'samba', 'reggae', 'funk', 'clássica'], 
+                                                size=np.random.randint(1, 4), replace=False)),
+                'image_url': 'https://example.com/artist_image.jpg'
+            } for i in range(10)
+        ]
+        
+        # Converter para DataFrames
+        self.spotify_tracks_df = pd.DataFrame(sample_tracks)
+        self.spotify_playlists_df = pd.DataFrame(sample_playlists)
+        self.spotify_artists_df = pd.DataFrame(sample_artists)
+        
+        print(f"Gerados {len(self.spotify_tracks_df)} tracks de amostra do Spotify")
+        print(f"Gerados {len(self.spotify_playlists_df)} playlists de amostra")
+        print(f"Gerados {len(self.spotify_artists_df)} artistas de amostra")
+        
+        return self.spotify_tracks_df, self.spotify_playlists_df, self.spotify_artists_df
+        
+    def extract_spotify_data(self):
+        """Extrai os dados do Spotify (ou gera dados de amostra quando não há acesso à API)."""
+        print("Extraindo dados do Spotify (modo de simulação)...")
+        try:
+            # Aqui iria o código de extração real da API do Spotify
+            # Como estamos em modo de demonstração, usamos dados de amostra
+            return self.generate_sample_spotify_data()
+        except Exception as e:
+            print(f"Erro na extração de dados do Spotify: {e}")
+            return self.generate_sample_spotify_data()
+            
+    def generate_sample_youtube_data(self):
+        """Gera dados de amostra do YouTube."""
+        print("Gerando dados de amostra do YouTube (modo offline)...")
+        
+        # Categorias de vídeos do YouTube com tradução para português
+        categories = [
+            {'id': '1', 'title': 'Film & Animation', 'title_pt': 'Filmes e Animações'},
+            {'id': '2', 'title': 'Autos & Vehicles', 'title_pt': 'Automóveis e Veículos'},
+            {'id': '10', 'title': 'Music', 'title_pt': 'Música'},
+            {'id': '15', 'title': 'Pets & Animals', 'title_pt': 'Animais de Estimação'},
+            {'id': '17', 'title': 'Sports', 'title_pt': 'Esportes'},
+            {'id': '20', 'title': 'Gaming', 'title_pt': 'Jogos'},
+            {'id': '22', 'title': 'People & Blogs', 'title_pt': 'Pessoas e Blogs'},
+            {'id': '23', 'title': 'Comedy', 'title_pt': 'Comédia'},
+            {'id': '24', 'title': 'Entertainment', 'title_pt': 'Entretenimento'},
+            {'id': '25', 'title': 'News & Politics', 'title_pt': 'Notícias e Política'},
+            {'id': '26', 'title': 'Howto & Style', 'title_pt': 'Tutoriais e Estilo'},
+            {'id': '27', 'title': 'Education', 'title_pt': 'Educação'},
+            {'id': '28', 'title': 'Science & Technology', 'title_pt': 'Ciência e Tecnologia'}
+        ]
+        
+        # Dados de sample para vídeos
+        sample_videos = []
+        for i in range(100):
+            # Escolher categoria aleatória
+            category_idx = np.random.randint(0, len(categories))
+            category_id = categories[category_idx]['id']
+            category_name = categories[category_idx]['title']
+            category_name_pt = categories[category_idx]['title_pt']
+            
+            # Vamos fazer as visualizações seguirem uma distribuição com cauda longa
+            views = np.random.exponential(scale=1000000) * (1 + np.random.random())
+            views = int(max(1000, views))
+            
+            like_rate = np.random.normal(loc=0.04, scale=0.01)  # ~4% das visualizações são likes
+            like_rate = max(0.005, min(0.15, like_rate))  # entre 0.5% e 15%
+            likes = int(views * like_rate)
+            
+            comment_rate = np.random.normal(loc=0.002, scale=0.001)  # ~0.2% das visualizações são comentários
+            comment_rate = max(0.0005, min(0.01, comment_rate))  # entre 0.05% e 1%
+            comments = int(views * comment_rate)
+            
+            # Calcular taxa de engajamento
+            engagement_rate = (likes + comments) / views if views > 0 else 0
+            
+            # Data de publicação nos últimos 30 dias
+            published_date = datetime.now() - timedelta(days=np.random.randint(1, 30),
+                                                       hours=np.random.randint(0, 24),
+                                                       minutes=np.random.randint(0, 60))
+            
+            video = {
+                'id': f'video_id_{i}',
+                'title': f'Vídeo Popular {i} - {category_name_pt}',
+                'channel_title': f'Canal {i % 20}',
+                'channel_id': f'channel_id_{i % 20}',
+                'published_at': published_date.isoformat(),
+                'category_id': category_id,
+                'category_name': category_name,
+                'category_name_pt': category_name_pt,
+                'duration': f'PT{np.random.randint(1, 15)}M{np.random.randint(0, 60)}S',
+                'view_count': views,
+                'like_count': likes,
+                'comment_count': comments,
+                'engagement_rate': engagement_rate,
+                'region_code': 'BR'
+            }
+            
+            sample_videos.append(video)
+        
+        # Converter para DataFrames
+        self.youtube_videos_df = pd.DataFrame(sample_videos)
+        self.youtube_categories_df = pd.DataFrame(categories)
+        
+        print(f"Gerados {len(self.youtube_videos_df)} vídeos de amostra do YouTube")
+        print(f"Geradas {len(self.youtube_categories_df)} categorias de amostra")
+        
+        return self.youtube_videos_df, self.youtube_categories_df
+        
+    def extract_youtube_data(self, region_code='BR'):
+        """Extrai os dados do YouTube (ou gera dados de amostra quando não há acesso à API)."""
+        print(f"Extraindo dados do YouTube para região {region_code} (modo de simulação)...")
+        try:
+            # Aqui iria o código de extração real da API do YouTube
+            # Como estamos em modo de demonstração, usamos dados de amostra
+            return self.generate_sample_youtube_data()
+        except Exception as e:
+            print(f"Erro na extração de dados do YouTube: {e}")
+            return self.generate_sample_youtube_data()
+            
+    def analyze_spotify_trends(self):
+        """Analisa tendências nos dados do Spotify."""
+        print("Analisando tendências do Spotify...")
+        
+        if self.spotify_tracks_df is None or self.spotify_artists_df is None:
+            print("Sem dados do Spotify para analisar. Por favor, extraia os dados primeiro.")
+            return None
+        
+        analysis = {}
+        
+        # Top artistas por contagem de faixas
+        artist_counts = self.spotify_tracks_df['artist'].value_counts().reset_index()
+        artist_counts.columns = ['artist', 'track_count']
+        analysis['top_artists_by_count'] = artist_counts.head(10)
+        
+        # Top gêneros
+        if 'genres' in self.spotify_artists_df.columns:
+            # Criar uma lista de todos os gêneros separando os valores por vírgulas
+            all_genres = self.spotify_artists_df['genres'].str.split(', ').explode().dropna()
+            genre_counts = all_genres.value_counts().reset_index()
+            genre_counts.columns = ['genre', 'count']
+            analysis['top_genres'] = genre_counts.head(10)
+        
+        # Popularidade média das faixas
+        analysis['avg_track_popularity'] = self.spotify_tracks_df['popularity'].mean()
+        
+        # Distribuição de características de áudio
+        audio_features = ['danceability', 'energy', 'speechiness', 'acousticness', 
+                          'instrumentalness', 'liveness', 'valence']
+        
+        feature_means = {}
+        for feature in audio_features:
+            if feature in self.spotify_tracks_df.columns:
+                feature_means[feature] = self.spotify_tracks_df[feature].mean()
+        
+        analysis['audio_feature_means'] = feature_means
+        
+        # Distribuição de duração
+        if 'duration_ms' in self.spotify_tracks_df.columns:
+            self.spotify_tracks_df['duration_min'] = self.spotify_tracks_df['duration_ms'] / 60000
+            analysis['avg_duration_min'] = self.spotify_tracks_df['duration_min'].mean()
+            analysis['max_duration_min'] = self.spotify_tracks_df['duration_min'].max()
+            analysis['min_duration_min'] = self.spotify_tracks_df['duration_min'].min()
+        
+        return analysis
+        
+    def analyze_youtube_trends(self):
+        """Analisa tendências nos dados do YouTube."""
+        print("Analisando tendências do YouTube...")
+        
+        if self.youtube_videos_df is None:
+            print("Sem dados do YouTube para analisar. Por favor, extraia os dados primeiro.")
+            return None
+        
+        analysis = {}
+        
+        # Top categorias por contagem
+        if 'category_name' in self.youtube_videos_df.columns:
+            category_counts = self.youtube_videos_df['category_name'].value_counts().reset_index()
+            category_counts.columns = ['category', 'count']
+            analysis['top_categories_by_count'] = category_counts
+        
+        # Top canais por contagem de vídeos
+        channel_counts = self.youtube_videos_df['channel_title'].value_counts().reset_index()
+        channel_counts.columns = ['channel', 'count']
+        analysis['top_channels_by_count'] = channel_counts.head(10)
+        
+        # Médias de visualizações, likes e comentários
+        analysis['avg_view_count'] = self.youtube_videos_df['view_count'].mean()
+        analysis['avg_like_count'] = self.youtube_videos_df['like_count'].mean()
+        analysis['avg_comment_count'] = self.youtube_videos_df['comment_count'].mean()
+        analysis['avg_engagement_rate'] = self.youtube_videos_df['engagement_rate'].mean()
+        
+        return analysis
+        
+    def correlate_spotify_youtube(self):
+        """Encontra correlações entre dados do Spotify e do YouTube."""
+        print("Correlacionando dados do Spotify e YouTube...")
+        
+        if (self.spotify_tracks_df is None or self.youtube_videos_df is None or 
+            self.spotify_tracks_df.empty or self.youtube_videos_df.empty):
+            print("Os dados do Spotify e do YouTube são necessários para análise de correlação.")
+            return None, None
+        
+        correlations = {}
+        
+        # Encontrar vídeos musicais correspondendo artistas e nomes de músicas em títulos de vídeos
+        music_videos = []
+        
+        for _, track in self.spotify_tracks_df.iterrows():
+            artist = track['artist'].lower()
+            song = track['name'].lower()
+            
+            # Verificar se o artista e o nome da música aparecem em algum título de vídeo
+            for _, video in self.youtube_videos_df.iterrows():
+                video_title = video['title'].lower()
+                
+                if artist in video_title and song in video_title:
+                    music_videos.append({
+                        'spotify_track_id': track['id'],
+                        'spotify_track_name': track['name'],
+                        'spotify_artist': track['artist'],
+                        'spotify_popularity': track['popularity'],
+                        'youtube_video_id': video['id'],
+                        'youtube_title': video['title'],
+                        'youtube_views': video['view_count'],
+                        'youtube_likes': video['like_count'],
+                        'youtube_comments': video['comment_count'],
+                        'youtube_engagement': video['engagement_rate']
+                    })
+        
+        self.correlation_df = pd.DataFrame(music_videos)
+        correlations['music_video_matches'] = len(music_videos)
+        
+        # Calcular correlação entre popularidade no Spotify e métricas de engajamento no YouTube
+        if not self.correlation_df.empty and len(self.correlation_df) > 1:
+            popularity_vs_views = np.corrcoef(
+                self.correlation_df['spotify_popularity'], 
+                self.correlation_df['youtube_views']
+            )[0, 1]
+            
+            popularity_vs_engagement = np.corrcoef(
+                self.correlation_df['spotify_popularity'], 
+                self.correlation_df['youtube_engagement']
+            )[0, 1]
+            
+            correlations['popularity_vs_views_corr'] = popularity_vs_views
+            correlations['popularity_vs_engagement_corr'] = popularity_vs_engagement
+        
+        return correlations, self.correlation_df
+
+    def analyze_regional_engagement(self, regions=['BR', 'US', 'GB'], platform="youtube"):
+        """
+        Analisa o engajamento em diferentes regiões por plataforma.
+        Args:
+            regions: Lista de códigos de região (ISO-3166) para análise
+            platform: 'youtube' ou 'spotify'
+        Returns:
+            DataFrame com dados de análise regional
+        """
+        print(f"Analisando engajamento regional para {regions} na plataforma {platform.upper()}...")
+        
+        # Lista expandida de regiões para análise
+        all_regions = {
+            'US': {'name': 'Estados Unidos', 'views_factor': 2.0, 'engagement': 0.045, 'category': 'Music', 'popularity': 82, 'genre': 'pop'},
+            'GB': {'name': 'Reino Unido', 'views_factor': 1.5, 'engagement': 0.040, 'category': 'Entertainment', 'popularity': 78, 'genre': 'rock'},
+            'BR': {'name': 'Brasil', 'views_factor': 1.2, 'engagement': 0.065, 'category': 'Music', 'popularity': 76, 'genre': 'sertanejo'},
+            'JP': {'name': 'Japão', 'views_factor': 1.8, 'engagement': 0.030, 'category': 'Gaming', 'popularity': 72, 'genre': 'j-pop'},
+            'DE': {'name': 'Alemanha', 'views_factor': 1.4, 'engagement': 0.035, 'category': 'Entertainment', 'popularity': 75, 'genre': 'electronic'},
+            'FR': {'name': 'França', 'views_factor': 1.3, 'engagement': 0.038, 'category': 'Comedy', 'popularity': 71, 'genre': 'chanson'},
+            'MX': {'name': 'México', 'views_factor': 1.1, 'engagement': 0.060, 'category': 'Entertainment', 'popularity': 79, 'genre': 'regional mexican'},
+            'CA': {'name': 'Canadá', 'views_factor': 1.6, 'engagement': 0.042, 'category': 'Howto & Style', 'popularity': 77, 'genre': 'pop'},
+            'KR': {'name': 'Coreia do Sul', 'views_factor': 1.7, 'engagement': 0.050, 'category': 'Music', 'popularity': 84, 'genre': 'k-pop'},
+            'AU': {'name': 'Austrália', 'views_factor': 1.4, 'engagement': 0.041, 'category': 'Entertainment', 'popularity': 74, 'genre': 'indie'},
+            'RU': {'name': 'Rússia', 'views_factor': 1.3, 'engagement': 0.047, 'category': 'Comedy', 'popularity': 68, 'genre': 'pop'},
+            'IN': {'name': 'Índia', 'views_factor': 1.6, 'engagement': 0.058, 'category': 'Music', 'popularity': 81, 'genre': 'bollywood'},
+            'ES': {'name': 'Espanha', 'views_factor': 1.2, 'engagement': 0.043, 'category': 'Entertainment', 'popularity': 73, 'genre': 'latin'},
+            'IT': {'name': 'Itália', 'views_factor': 1.1, 'engagement': 0.039, 'category': 'Music', 'popularity': 70, 'genre': 'italian pop'},
+            'NL': {'name': 'Holanda', 'views_factor': 1.3, 'engagement': 0.036, 'category': 'Howto & Style', 'popularity': 72, 'genre': 'dutch pop'},
+            'SE': {'name': 'Suécia', 'views_factor': 1.2, 'engagement': 0.032, 'category': 'Gaming', 'popularity': 76, 'genre': 'swedish pop'},
+            'AR': {'name': 'Argentina', 'views_factor': 1.0, 'engagement': 0.055, 'category': 'Entertainment', 'popularity': 75, 'genre': 'latin'},
+            'CO': {'name': 'Colômbia', 'views_factor': 0.9, 'engagement': 0.059, 'category': 'Music', 'popularity': 78, 'genre': 'reggaeton'},
+            'CL': {'name': 'Chile', 'views_factor': 0.8, 'engagement': 0.052, 'category': 'Comedy', 'popularity': 74, 'genre': 'latin'},
+            'PL': {'name': 'Polônia', 'views_factor': 1.1, 'engagement': 0.037, 'category': 'Gaming', 'popularity': 69, 'genre': 'dance'}
+        }
+        
+        regional_data = []
+        
+        for region in regions:
+            # Usar os dados da região se estiver na lista, caso contrário usar valores padrão
+            region_info = all_regions.get(region, {
+                'name': 'Região Desconhecida', 
+                'views_factor': 1.0, 
+                'engagement': 0.04, 
+                'category': 'Entertainment',
+                'popularity': 70,
+                'genre': 'pop'
+            })
+            
+            if platform == "youtube":
+                # Gerar visualização média e engajamento com alguma variação entre regiões
+                region_views_base = 500000 + np.random.randint(-200000, 200000)
+                region_views_factor = region_info['views_factor']
+                
+                avg_views = region_views_base * region_views_factor
+                
+                # Taxa de engajamento (likes+comentários/visualizações) varia por região
+                engagement_factor = region_info['engagement']
+                avg_engagement = engagement_factor * (1 + np.random.uniform(-0.2, 0.2))
+                
+                # Calcular likes e comentários com base nas visualizações e engajamento
+                like_ratio = 0.8  # 80% do engajamento são likes, 20% são comentários
+                avg_likes = avg_views * avg_engagement * like_ratio
+                avg_comments = avg_views * avg_engagement * (1 - like_ratio)
+                
+                # Categorias mais populares por região
+                region_top_category = region_info['category']
+                top_category_details = f"'{region_top_category}' é a categoria mais assistida, representando cerca de {int(30 + np.random.randint(0, 20))}% dos vídeos populares nesta região"
+                
+                region_stats = {
+                    'region': region,
+                    'region_name': region_info['name'],
+                    'video_count': np.random.randint(30, 50),  # Simulação de contagem de vídeos
+                    'avg_views': avg_views,
+                    'avg_likes': avg_likes,
+                    'avg_comments': avg_comments,
+                    'avg_engagement': avg_engagement,
+                    'top_category': region_top_category,
+                    'top_category_details': top_category_details
+                }
+            
+            else:  # platform == "spotify"
+                # Gerar dados de popularidade do Spotify por região
+                base_popularity = region_info['popularity'] + np.random.randint(-5, 5)
+                base_popularity = min(100, max(50, base_popularity))  # Limitar entre 50 e 100
+                
+                # Gênero musical mais popular
+                top_genre = region_info['genre']
+                genre_count = np.random.randint(200, 500)
+                top_genre_details = f"'{top_genre.title()}' é o gênero mais ouvido com cerca de {genre_count} faixas populares nesta região"
+                
+                # Outros dados específicos do Spotify
+                region_stats = {
+                    'region': region,
+                    'region_name': region_info['name'],
+                    'track_count': np.random.randint(100, 300),
+                    'avg_popularity': base_popularity,
+                    'top_genre': top_genre,
+                    'genre_count': genre_count,
+                    'top_genre_details': top_genre_details,
+                    'avg_danceability': round(0.5 + np.random.uniform(-0.2, 0.2), 2),
+                    'avg_energy': round(0.6 + np.random.uniform(-0.2, 0.2), 2)
+                }
+            
+            regional_data.append(region_stats)
+        
+        regional_df = pd.DataFrame(regional_data)
+        return regional_df
+
+    def analyze_brazil_regions(self, regions=['Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul'], platform="youtube"):
+        """
+        Analisa o engajamento por regiões do Brasil por plataforma.
+        Args:
+            regions: Lista de regiões brasileiras para análise
+            platform: 'youtube' ou 'spotify'
+        Returns:
+            DataFrame com dados de análise regional
+        """
+        print(f"Analisando engajamento para regiões do Brasil na plataforma {platform.upper()}...")
+        
+        # Dados para regiões do Brasil
+        brazil_regions = {
+            'Norte': {
+                'name': 'Região Norte', 
+                'views_factor': 0.8, 
+                'engagement': 0.055,
+                'category': 'Entertainment', 
+                'popularity': 73,
+                'genre': 'Tecno Melody'
+            },
+            'Nordeste': {
+                'name': 'Região Nordeste', 
+                'views_factor': 1.1, 
+                'engagement': 0.060,
+                'category': 'Music', 
+                'popularity': 75,
+                'genre': 'Forró'
+            },
+            'Centro-Oeste': {
+                'name': 'Região Centro-Oeste', 
+                'views_factor': 0.9, 
+                'engagement': 0.045,
+                'category': 'Howto & Style', 
+                'popularity': 72,
+                'genre': 'Sertanejo'
+            },
+            'Sudeste': {
+                'name': 'Região Sudeste', 
+                'views_factor': 1.4, 
+                'engagement': 0.042,
+                'category': 'Music', 
+                'popularity': 78,
+                'genre': 'Funk'
+            },
+            'Sul': {
+                'name': 'Região Sul', 
+                'views_factor': 1.0, 
+                'engagement': 0.038,
+                'category': 'Comedy', 
+                'popularity': 74,
+                'genre': 'Rock Gaúcho'
+            }
+        }
+        
+        regional_data = []
+        
+        for region in regions:
+            # Usar os dados da região se estiver na lista, caso contrário usar um default
+            region_info = brazil_regions.get(region, {
+                'name': f'Região {region}', 
+                'views_factor': 1.0, 
+                'engagement': 0.04, 
+                'category': 'Entertainment',
+                'popularity': 70,
+                'genre': 'MPB'
+            })
+            
+            if platform == "youtube":
+                # Gerar dados para YouTube
+                region_views_base = 350000 + np.random.randint(-100000, 100000)
+                region_views_factor = region_info['views_factor']
+                
+                avg_views = region_views_base * region_views_factor
+                
+                # Taxa de engajamento
+                engagement_factor = region_info['engagement']
+                avg_engagement = engagement_factor * (1 + np.random.uniform(-0.2, 0.2))
+                
+                # Calcular likes e comentários com base nas visualizações e engajamento
+                like_ratio = 0.8  # 80% do engajamento são likes, 20% são comentários
+                avg_likes = avg_views * avg_engagement * like_ratio
+                avg_comments = avg_views * avg_engagement * (1 - like_ratio)
+                
+                # Categorias mais populares por região
+                region_top_category = region_info['category']
+                top_category_details = f"'{region_top_category}' é a categoria mais assistida, com {int(25 + np.random.randint(0, 20))}% dos vídeos populares na {region_info['name']}"
+                
+                region_stats = {
+                    'region': region,
+                    'region_name': region_info['name'],
+                    'video_count': np.random.randint(20, 40),  # contagem de vídeos menor para regiões
+                    'avg_views': avg_views,
+                    'avg_likes': avg_likes,
+                    'avg_comments': avg_comments,
+                    'avg_engagement': avg_engagement,
+                    'top_category': region_top_category,
+                    'top_category_details': top_category_details
+                }
+                
+            else:  # platform == "spotify"
+                # Gerar dados de popularidade do Spotify por região
+                base_popularity = region_info['popularity'] + np.random.randint(-3, 3)
+                base_popularity = min(100, max(50, base_popularity))  # Limitar entre 50 e 100
+                
+                # Gênero musical mais popular
+                top_genre = region_info['genre']
+                genre_count = np.random.randint(150, 350)
+                top_genre_details = f"'{top_genre}' é o gênero mais ouvido com cerca de {genre_count} faixas populares na {region_info['name']}"
+                
+                # Outros dados específicos do Spotify
+                region_stats = {
+                    'region': region,
+                    'region_name': region_info['name'],
+                    'track_count': np.random.randint(80, 200),
+                    'avg_popularity': base_popularity,
+                    'top_genre': top_genre,
+                    'genre_count': genre_count,
+                    'top_genre_details': top_genre_details,
+                    'avg_danceability': round(0.6 + np.random.uniform(-0.15, 0.15), 2),
+                    'avg_energy': round(0.65 + np.random.uniform(-0.15, 0.15), 2)
+                }
+                
+            regional_data.append(region_stats)
+        
+        regional_df = pd.DataFrame(regional_data)
+        return regional_df
+        
+    def create_visualizations(self):
+        """Cria visualizações interativas dos dados analisados."""
+        print("Criando visualizações...")
+        
+        # Verificar se os dados estão disponíveis
+        if (self.spotify_tracks_df is None or self.youtube_videos_df is None or 
+            self.spotify_tracks_df.empty or self.youtube_videos_df.empty):
+            print("Os dados do Spotify e do YouTube são necessários para visualizações.")
+            return None
+        
+        # Criar diretório de saída para visualizações
+        os.makedirs("visualizations", exist_ok=True)
+        
+        # 1. Popularidade de Artistas do Spotify
+        if self.spotify_artists_df is not None and not self.spotify_artists_df.empty:
+            top_artists = self.spotify_artists_df.sort_values(by='popularity', ascending=False).head(15)
+            
+            plt.figure(figsize=(12, 8))
+            sns.barplot(x='popularity', y='name', data=top_artists)
+            plt.title('Top 15 Artistas por Popularidade')
+            plt.tight_layout()
+            plt.savefig('visualizations/top_artists_popularity.png')
+            plt.close()
+            
+        # 2. Distribuição de Características de Áudio
+        if self.spotify_tracks_df is not None and not self.spotify_tracks_df.empty:
+            features = ['danceability', 'energy', 'speechiness', 'acousticness', 
+                      'instrumentalness', 'liveness', 'valence']
+            
+            available_features = [f for f in features if f in self.spotify_tracks_df.columns]
+            
+            if available_features:
+                features_df = self.spotify_tracks_df[available_features].melt(var_name='feature', value_name='value')
+                
+                plt.figure(figsize=(14, 8))
+                sns.violinplot(x='feature', y='value', data=features_df)
+                plt.title('Distribuição de Características de Áudio')
+                plt.tight_layout()
+                plt.savefig('visualizations/audio_features_dist.png')
+                plt.close()
+            
+        # 3. Engajamento por Categoria no YouTube
+        if self.youtube_videos_df is not None and not self.youtube_videos_df.empty and 'category_name' in self.youtube_videos_df.columns:
+            category_engagement = self.youtube_videos_df.groupby('category_name').agg({
+                'view_count': 'mean',
+                'like_count': 'mean',
+                'comment_count': 'mean',
+                'engagement_rate': 'mean'
+            }).reset_index()
+            
+            # Plotar
+            plt.figure(figsize=(14, 8))
+            sns.barplot(x='engagement_rate', y='category_name', data=category_engagement.sort_values('engagement_rate'))
+            plt.title('Taxa Média de Engajamento por Categoria do YouTube')
+            plt.tight_layout()
+            plt.savefig('visualizations/youtube_category_engagement.png')
+            plt.close()
+        
+        # 4. Correlação entre popularidade do Spotify e visualizações do YouTube
+        if self.correlation_df is not None and not self.correlation_df.empty:
+            plt.figure(figsize=(10, 8))
+            sns.scatterplot(x='spotify_popularity', y='youtube_views', data=self.correlation_df)
+            plt.title('Correlação: Popularidade no Spotify vs Visualizações no YouTube')
+            plt.tight_layout()
+            plt.savefig('visualizations/spotify_youtube_correlation.png')
+            plt.close()
+            
+        # 5. Criar visualização interativa usando Plotly
+        if self.youtube_videos_df is not None and not self.youtube_videos_df.empty:
+            # Criar gráfico de bolhas de visualizações vs. likes com engajamento como tamanho
+            fig = px.scatter(
+                self.youtube_videos_df,
+                x='view_count',
+                y='like_count',
+                size='engagement_rate',
+                color='category_name',
+                hover_name='title',
+                log_x=True,
+                log_y=True,
+                size_max=60,
+                title='Vídeos do YouTube: Visualizações vs. Likes por Categoria'
+            )
+            
+            fig.update_layout(
+                xaxis_title='Contagem de Visualizações (escala logarítmica)',
+                yaxis_title='Contagem de Likes (escala logarítmica)',
+                legend_title='Categoria'
+            )
+            
+            fig.write_html('visualizations/interactive_youtube_metrics.html')
+        
+        # 6. Comparação de engajamento regional
+        regional_df = self.analyze_regional_engagement()
+        
+        if regional_df is not None and not regional_df.empty:
+            fig = px.bar(
+                regional_df, 
+                x='region', 
+                y=['avg_views', 'avg_likes', 'avg_comments'],
+                barmode='group',
+                title='Métricas de Engajamento do YouTube por Região',
+            )
+            
+            fig.update_layout(
+                xaxis_title='Região',
+                yaxis_title='Média',
+                legend_title='Métrica'
+            )
+            
+            fig.write_html('visualizations/regional_engagement.html')
+
+        # 7. Análise por Regiões Brasileiras
+        brazil_regional_df = self.analyze_brazil_regions()
+        
+        if brazil_regional_df is not None and not brazil_regional_df.empty:
+            fig = px.bar(
+                brazil_regional_df, 
+                x='region', 
+                y=['avg_views', 'avg_likes', 'avg_comments'],
+                barmode='group',
+                title='Métricas de Engajamento do YouTube por Região do Brasil',
+            )
+            
+            fig.update_layout(
+                xaxis_title='Região',
+                yaxis_title='Média',
+                legend_title='Métrica'
+            )
+            
+            fig.write_html('visualizations/brazil_regional_engagement.html')
+            
+            # Categorias por região brasileira
+            if 'top_category' in brazil_regional_df.columns:
+                fig = px.bar(
+                    brazil_regional_df,
+                    x='region',
+                    y='avg_engagement',
+                    color='top_category',
+                    title='Categorias Populares por Região do Brasil',
+                    text_auto='.3f'
+                )
+                
+                fig.update_layout(
+                    xaxis_title='Região',
+                    yaxis_title='Taxa de Engajamento',
+                    legend_title='Categoria Principal'
+                )
+                
+                fig.write_html('visualizations/brazil_regional_categories.html')
+                
+        # 8. Análise Spotify Regional
+        spotify_regional_df = self.analyze_regional_engagement(platform="spotify")
+        
+        if spotify_regional_df is not None and not spotify_regional_df.empty:
+            fig = px.bar(
+                spotify_regional_df,
+                x='region',
+                y='avg_popularity',
+                title='Popularidade Média no Spotify por País',
+                color='avg_popularity',
+                color_continuous_scale='Viridis',
+                text_auto='.1f'
+            )
+            
+            fig.update_layout(
+                xaxis_title='País',
+                yaxis_title='Popularidade Média (0-100)'
+            )
+            
+            fig.write_html('visualizations/spotify_regional_popularity.html')
+            
+            # Gêneros por país
+            if 'top_genre' in spotify_regional_df.columns:
+                fig = px.bar(
+                    spotify_regional_df,
+                    x='region',
+                    y='genre_count',
+                    color='top_genre',
+                    title='Gêneros Musicais Populares por País',
+                )
+                
+                fig.update_layout(
+                    xaxis_title='País',
+                    yaxis_title='Quantidade de Músicas',
+                    legend_title='Gênero Principal'
+                )
+                
+                fig.write_html('visualizations/spotify_regional_genres.html')
+            
+        print(f"Visualizações salvas no diretório 'visualizations'")
+        
+    def run(self):
+        """Executa o pipeline completo de análise."""
+        # Extrair dados
+        self.extract_spotify_data()
+        self.extract_youtube_data()
+        
+        # Analisar dados
+        spotify_analysis = self.analyze_spotify_trends()
+        youtube_analysis = self.analyze_youtube_trends()
+        
+        # Correlacionar dados
+        correlations, _ = self.correlate_spotify_youtube()
+        
+        # Análise regional
+        regional_analysis = self.analyze_regional_engagement()
+        
+        # Criar visualizações
+        self.create_visualizations()
+        
+        # Retornar todas as análises
+        return {
+            'spotify': spotify_analysis,
+            'youtube': youtube_analysis,
+            'correlations': correlations,
+            'regional': regional_analysis
+        }
+
+# Execução principal
+if __name__ == "__main__":
+    analyzer = SpotifyYouTubeAnalyzer()
+    results = analyzer.run()
+    
+    # Imprimir resumo dos resultados
+    print("\n===== RESUMO DA ANÁLISE =====")
+    if results.get('spotify'):
+        print("\n----- Tendências do Spotify -----")
+        print(f"Top artistas analisados: {len(results['spotify'].get('top_artists_by_count', []))}")
+        print(f"Popularidade média das faixas: {results['spotify'].get('avg_track_popularity', 0):.2f}/100")
+        if 'avg_duration_min' in results['spotify']:
+            print(f"Duração média das faixas: {results['spotify']['avg_duration_min']:.2f} minutos")
+    
+    if results.get('youtube'):
+        print("\n----- Tendências do YouTube -----")
+        print(f"Visualizações médias: {results['youtube'].get('avg_view_count', 0):.0f}")
+        print(f"Taxa média de engajamento: {results['youtube'].get('avg_engagement_rate', 0):.4f}")
+    
+    if results.get('correlations'):
+        print("\n----- Correlações entre Plataformas -----")
+        print(f"Correspondências de vídeos musicais encontradas: {results['correlations'].get('music_video_matches', 0)}")
+        if 'popularity_vs_views_corr' in results['correlations']:
+            print(f"Correlação entre popularidade no Spotify e visualizações no YouTube: {results['correlations']['popularity_vs_views_corr']:.4f}")
+    
+    if results.get('regional') is not None:
+        print("\n----- Análise Regional -----")
+        print(f"Regiões analisadas: {len(results['regional'])}")
+    
+    print("\nAnálise completa! Verifique o diretório 'visualizations' para gráficos detalhados.")
